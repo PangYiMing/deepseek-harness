@@ -1,0 +1,34 @@
+packages/llm/llm-pi-ai/src/catalog.ts
+  s_8a2adc5d84f3ea::t_4ae370af35c929 328
+  s_8a2adc5d84f3ea::t_65a1ca9f8596ef 273
+  s_8a2adc5d84f3ea::t_993d35679ee371 23
+packages/llm/llm-pi-ai/tests/catalog.spec.ts
+  s_8a2adc5d84f3ea::t_6cc5b815cd2c36 557
+  s_8a2adc5d84f3ea::t_d89129181a13cc 374
+.agents/notes/implemented/bug-fix/2026-09-05-pi-ai-upgrade-compatibility.zh.md
+  s_8a2adc5d84f3ea::t_3c1876144f8cdc 13
+packages/llm/llm-pi-ai/src/replay.ts
+  s_8a2adc5d84f3ea::t_6632d9488f3555 13
+.agents/notes/implemented/bug-fix/2026-09-05-pi-ai-upgrade-compatibility.md
+  s_8a2adc5d84f3ea::t_32492a2695e1b6 13
+packages/llm/llm-pi-ai/tests/compat-upgrade.spec.ts
+  s_8a2adc5d84f3ea::t_2b66b896f71386 53-59,64-69
+.agents/notes/implemented/bug-fix/2026-09-05-pi-ai-upgrade-compatibility.i18n.yaml
+  s_8a2adc5d84f3ea::t_e9abe7663b1023 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.44-trip",
+  "base_commit_sha": "caecc89d35b2dfa47e07bc0aa8fcb04b3745ab9a",
+  "prompts": {},
+  "sessions": {
+    "s_8a2adc5d84f3ea": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f433ad068ffeWumECygxaLclwE",
+        "model": "unknown"
+      },
+      "human_author": "ympang <ympang@trip.com>"
+    }
+  }
+}

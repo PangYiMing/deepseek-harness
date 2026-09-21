@@ -4,9 +4,11 @@
  * time->ellipsis, action buttons) are CSS-only, and a session row's clipped
  * title is scrolled programmatically while the row is hovered. Row ... menus are
  * visual-only except workspace Rename/Delete and session Rename/Fork/Archive; the
- * session and workspace hover cards are suppressed while a menu is open.
+ * session and workspace hover cards are suppressed while a menu is open. Right-click
+ * opens a row's menu at the pointer (blank rows and the ungrouped bucket have none).
  */
 import { useEffect, useRef, useState } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import clsx from 'clsx'
 import {
   HoverCard, IconAlarmClockOutline16, IconArchiveOutline20, IconBranchOutline16,
@@ -56,6 +58,36 @@ function revealClippedTitle(title: HTMLSpanElement | null, revealed: boolean): v
 function timeLabel(updatedAt: number, now: number, t: RowTranslate): string {
   const { unit, n } = relativeTime(updatedAt, now)
   return unit === 'now' ? t('time.now') : t(`time.${unit}`, { n })
+}
+
+/**
+ * Right-click support for a row's ellipsis Menu: the row's `onContextMenu`
+ * records the pointer position and the component opens the menu, and
+ * `anchorRect` feeds that point to the Menu's portal placement so the list
+ * opens at the cursor. `anchorRect` must only reach the Menu while a point is
+ * recorded (see `hasPoint`): a portal Menu with a `getAnchorRect` that returns
+ * null keeps the list hidden instead of falling back to measuring its wrapper.
+ */
+function useRowContextMenu(): {
+  openAtPointer: (e: ReactMouseEvent) => void
+  reset: () => void
+  /** True between a right-click and the next button-opened menu or reset. */
+  hasPoint: boolean
+  anchorRect: () => DOMRect | null
+} {
+  const [point, setPoint] = useState<{ x: number; y: number } | undefined>(undefined)
+  const openAtPointer = (e: ReactMouseEvent): void => {
+    e.preventDefault()
+    setPoint({ x: e.clientX, y: e.clientY })
+  }
+  const anchorRect = (): DOMRect | null => {
+    if (point === undefined) return null
+    const { x, y } = point
+    // A zero-size rect at the cursor: align/side extend the list down-right,
+    // and Menu already clamps it inside the viewport.
+    return { x, y, width: 0, height: 0, left: x, top: y, right: x, bottom: y, toJSON: () => ({ x, y }) } as DOMRect
+  }
+  return { openAtPointer, reset: () => { setPoint(undefined) }, hasPoint: point !== undefined, anchorRect }
 }
 
 /** Hover-card variant: distances wrap in the ago template; the now bucket stays bare (no "now ago"). */
@@ -153,6 +185,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
   const label = row.workspaceId === undefined ? t('group.ungrouped') : row.label
   const active = containsCurrentDescendant || (group.expanded && group.containsCurrent)
   const [menuOpen, setMenuOpen] = useState(false)
+  const contextMenu = useRowContextMenu()
   const workspaceMenuItems = [
     { id: 'rename', label: t('rename'), icon: <IconEditOutline16 /> },
     { id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutline16 />, danger: true },
@@ -163,6 +196,9 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
       role="treeitem"
       aria-expanded={row.expanded}
       onClick={onToggle}
+      onContextMenu={actions === undefined
+        ? undefined
+        : (e) => { contextMenu.openAtPointer(e); setMenuOpen(true) }}
       draggable={drag !== undefined}
       onDragStart={drag === undefined
         ? undefined
@@ -199,12 +235,13 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
             }}
             portal
             closeOnPointerLeave
+            {...(contextMenu.hasPoint ? { getAnchorRect: contextMenu.anchorRect } : {})}
             anchor={(
               <button
                 type="button"
                 className={css.iconButton}
                 aria-label={t('actions.workspace.aria', { name: label })}
-                onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
+                onClick={(e) => { e.stopPropagation(); contextMenu.reset(); setMenuOpen(v => !v) }}
               >
                 <IconEllipsisOutline16 />
               </button>
@@ -432,6 +469,7 @@ export function SessionNodeItem({
   const showStatus = primaryStatus.state !== 'done' || row.completed
   const draggable = drag !== undefined && !row.blank
   const [menuOpen, setMenuOpen] = useState(false)
+  const contextMenu = useRowContextMenu()
   const rowRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLSpanElement>(null)
   useEffect(() => {
@@ -460,6 +498,9 @@ export function SessionNodeItem({
       role="treeitem"
       aria-selected={selected}
       onClick={() => { onOpen(node.id) }}
+      onContextMenu={row.blank
+        ? undefined
+        : (e) => { contextMenu.openAtPointer(e); setMenuOpen(true) }}
       onPointerEnter={() => { revealClippedTitle(titleRef.current, true) }}
       onPointerLeave={() => { revealClippedTitle(titleRef.current, false) }}
       draggable={draggable}
@@ -516,12 +557,13 @@ export function SessionNodeItem({
             }}
             portal
             closeOnPointerLeave
+            {...(contextMenu.hasPoint ? { getAnchorRect: contextMenu.anchorRect } : {})}
             anchor={(
               <button
                 type="button"
                 className={css.iconButton}
                 aria-label={t('actions.session.aria', { name: title })}
-                onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
+                onClick={(e) => { e.stopPropagation(); contextMenu.reset(); setMenuOpen(v => !v) }}
               >
                 <IconEllipsisOutline16 />
               </button>

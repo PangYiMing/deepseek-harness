@@ -381,6 +381,12 @@ describe('workspace browser rows', () => {
     fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }))
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()
+    // Right-click opens the same menu at the pointer.
+    fireEvent.contextMenu(screen.getByRole('treeitem'), { clientX: 24, clientY: 32 })
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(screen.getByRole('menuitem', { name: '重命名' })).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
   })
 
   it('workspace hover card shows its details and copies the full directory path', async () => {
@@ -528,9 +534,30 @@ describe('workspace browser rows', () => {
     expect(onRename).toHaveBeenCalledOnce()
     expect(onOpen).not.toHaveBeenCalled()
     // Escape closes without selecting (Menu onClose path).
-    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('opens the session row menu at the pointer on right-click', () => {
+    const onOpen = vi.fn()
+    const onRename = vi.fn()
+    const node: SessionNode = {
+      id: sid('s-rightclick'), title: 'One', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, hasActiveSchedule: false, updatedAt: 0,
+    }
+    render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={onOpen}
+      onRename={onRename} onFork={vi.fn()} onArchive={vi.fn()} t={t} />)
+    fireEvent.contextMenu(screen.getByRole('treeitem'), { clientX: 24, clientY: 32 })
+    // Right-click opens the row menu without opening the session.
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(screen.getByRole('menuitem', { name: '重命名' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: '重命名' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(onRename).toHaveBeenCalledWith(node.id, 'One')
+    // A later button-opened menu is not held at the stale cursor point: the
+    // portal Menu falls back to its wrapper placement.
+    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
+    expect(screen.getByRole('menuitem', { name: '归档会话' })).toBeTruthy()
   })
 
 

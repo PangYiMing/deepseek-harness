@@ -1,0 +1,37 @@
+packages/goal/goal-round-driver/src/index.ts
+  s_da1819fa19d79a::t_ebe6cafd81ce8f 91-96
+packages/goal/goal-round-driver/tests/goal-round-driver.spec.ts
+  s_da1819fa19d79a::t_92e872797ab68e 89,94
+packages/goal/goal-round-driver/README.md
+  s_da1819fa19d79a::t_eeaf28cacb0864 12,32,43-44,47-48,53,84,114,118
+packages/goal/goal-round-driver/README.zh.md
+  s_da1819fa19d79a::t_eeaf28cacb0864 12,32,43-44,47-48,53,84,114,118
+packages/llm/llm-pi-ai/package.json
+  s_8a2adc5d84f3ea::t_2eb50fc48e7517 44
+pnpm-workspace.yaml
+  s_8a2adc5d84f3ea::t_749dc2105b3254 64-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.45-trip",
+  "base_commit_sha": "cba4f4b76da833fb63b026ab80cdd886ab403a94",
+  "prompts": {},
+  "sessions": {
+    "s_8a2adc5d84f3ea": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f433ad068ffeWumECygxaLclwE",
+        "model": "unknown"
+      },
+      "human_author": "ympang <ympang@trip.com>"
+    },
+    "s_da1819fa19d79a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c21a-5133-7891-8a8f-c3f17ceb7d59",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "ympang <ympang@trip.com>"
+    }
+  }
+}

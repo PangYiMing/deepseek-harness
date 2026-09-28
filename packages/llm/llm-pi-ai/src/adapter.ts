@@ -201,12 +201,24 @@ function reasoningInfo(
   }
 }
 
-/** Merge deployment headers while removing case-insensitive attribution collisions. */
-function requestHeaders(headers: Readonly<Record<string, string>> | undefined): Record<string, string> {
+/**
+ * Merge deployment headers while removing case-insensitive attribution
+ * collisions. The profile's `sessionHeader` replaces its same-named static
+ * entry — a fixed value cannot carry per-conversation session affinity — and
+ * Harness attribution still wins reserved names, including a `sessionHeader`
+ * naming one.
+ */
+function requestHeaders(
+  headers: Readonly<Record<string, string>> | undefined,
+  session: { name: string; id: string } | undefined,
+): Record<string, string> {
   const attribution = attributionHeaders()
-  const reserved = new Set(Object.keys(attribution).map(name => name.toLowerCase()))
+  const replaced = session === undefined
+    ? new Set(Object.keys(attribution).map(name => name.toLowerCase()))
+    : new Set([...Object.keys(attribution), session.name].map(name => name.toLowerCase()))
   return {
-    ...Object.fromEntries(Object.entries(headers ?? {}).filter(([name]) => !reserved.has(name.toLowerCase()))),
+    ...Object.fromEntries(Object.entries(headers ?? {}).filter(([name]) => !replaced.has(name.toLowerCase()))),
+    ...session === undefined ? {} : { [session.name]: session.id },
     ...attribution,
   }
 }
@@ -385,7 +397,12 @@ export class PiAiAdapter extends LlmAdapter {
         signal: watchdog.signal,
         // Profile headers are deployment-owned; attribution names are
         // Harness-owned and therefore win collisions.
-        headers: requestHeaders(profile.headers),
+        headers: requestHeaders(
+          profile.headers,
+          profile.sessionHeader !== undefined && options.sessionId !== undefined
+            ? { name: profile.sessionHeader, id: String(options.sessionId) }
+            : undefined,
+        ),
       })
       const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]()
       let exhausted = false

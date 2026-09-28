@@ -79,6 +79,7 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
 | `models` | installed catalog | Replaces the route's catalog wholesale; each entry defaults from the installed model |
 | `modelOverrides` | none | Reshapes individual installed-catalog models without replacing the rest |
 | `compat` | catalog detection | Wire-compatibility switches for unrecognized endpoints |
+| `sessionHeader` | `x-opencode-session` on OpenCode routes, else absent | Name of the request header carrying the conversation id, for gateways that route by per-conversation session affinity and reject requests without one; OpenCode routes (route key starting with `opencode`, or an endpoint on `opencode.ai`) default to the gateway's required `x-opencode-session`, and an explicit value replaces a same-named `headers` entry |
 | `defaultContextWindow` | `262,144` | Capacity fallback for undescribed models |
 | `defaultMaxTokens` | `32,768` | Output-cap fallback for undescribed models |
 | `requestImagePixelBudget` | `4,194,304` | Total-pixel budget for each deterministic request image |

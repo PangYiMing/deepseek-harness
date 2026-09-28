@@ -79,6 +79,7 @@ kind: "package-reference"
 | `models` | 已安装目录 | 整体替换路由目录；每个条目从已安装模型取默认值 |
 | `modelOverrides` | 无 | 重塑个别已安装目录模型，而不替换其余模型 |
 | `compat` | 目录检测 | 无法识别端点的协议兼容开关 |
+| `sessionHeader` | OpenCode 路由上为 `x-opencode-session`，其余无 | 携带会话 id 的请求标头名，供按会话亲和路由、且拒绝缺少该标头请求的网关使用；OpenCode 路由（路由名以 `opencode` 开头，或端点在 `opencode.ai`）默认取网关要求的 `x-opencode-session`，显式值替换 `headers` 中的同名条目 |
 | `defaultContextWindow` | `262,144` | 未描述模型的容量回退 |
 | `defaultMaxTokens` | `32,768` | 未描述模型的输出上限回退 |
 | `requestImagePixelBudget` | `4,194,304` | 每张确定性请求图片的总像素预算 |

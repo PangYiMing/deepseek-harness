@@ -1,0 +1,23 @@
+packages/llm/llm-pi-ai/README.i18n.yaml
+  s_718c9c24d858cc::t_9b738e4b50d701 90-91
+packages/llm/llm-pi-ai/README.zh.md
+  s_718c9c24d858cc::t_7d51836925a178 232
+packages/llm/llm-pi-ai/README.md
+  s_718c9c24d858cc::t_7d51836925a178 232
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.45-trip",
+  "base_commit_sha": "7da0313325bfe04a4322bc8dd6ff22352d79c34f",
+  "prompts": {},
+  "sessions": {
+    "s_718c9c24d858cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7227b3b-a98e-4c28-83a1-27fe269660c8",
+        "model": "glm-5.3"
+      },
+      "human_author": "ympang <ympang@trip.com>"
+    }
+  }
+}

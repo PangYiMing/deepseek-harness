@@ -1,0 +1,23 @@
+packages/client/ui-model-selection/tests/model-select.client.spec.tsx
+  s_718c9c24d858cc::t_47479ea841c340 58-72,326-328,332,604-730
+packages/client/ui-model-selection/src/client/ModelSelect.module.css
+  s_718c9c24d858cc::t_47479ea841c340 30-32,198,264
+packages/client/ui-model-selection/src/client/ModelSelect.tsx
+  s_718c9c24d858cc::t_47479ea841c340 26,52-54,84-88,136-138,141,147-148,250-251,294-298,306-344,460-463
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.45-trip",
+  "base_commit_sha": "7f0bc56f07b128be92294c5732f3bd98e5805b5f",
+  "prompts": {},
+  "sessions": {
+    "s_718c9c24d858cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7227b3b-a98e-4c28-83a1-27fe269660c8",
+        "model": "glm-5.3"
+      },
+      "human_author": "ympang <ympang@trip.com>"
+    }
+  }
+}

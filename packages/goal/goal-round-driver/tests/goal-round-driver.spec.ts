@@ -11,6 +11,7 @@ import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
+import type { Config as GoalRoundDriverConfig } from '../src/config.ts'
 import * as goalSession from '../src/index.ts'
 
 declare module '@deepseek-ai/dsh-llm' {
@@ -92,12 +93,12 @@ afterEach(async () => {
 })
 
 /** Mount a real loop with only its model scripted. */
-async function harness(script: ScriptEntry[]): Promise<Harness> {
+async function harness(script: ScriptEntry[], config: GoalRoundDriverConfig = {}): Promise<Harness> {
   const ctx = new Context()
   contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(GoalService)
-  const driver = await ctx.plugin(goalSession)
+  const driver = await ctx.plugin(goalSession, config)
   await ctx.plugin(AgentLoop, { agents: [] })
   const adapter = new ScriptedAdapter(script)
   ctx.llm.registerAdapter(['mock'], adapter)
@@ -216,6 +217,33 @@ describe('same-session goal driving', () => {
     expect(requestText(test.adapter.requests[1]!)).toContain('Round: 2/2')
     expect(test.agent.session.snapshotEvents().flatMap(event =>
       event.type === 'request/header' ? [event.data.reason] : [])).toEqual(['initial', 'series'])
+  })
+
+  it('injects configured slots only at their cyclic rounds', async () => {
+    const injection = 'Reassess the stalled path before continuing.'
+    const test = await harness(
+      Array.from({ length: 8 }, () => textResponse('next round')),
+      { roundInjections: ['', '', '', injection] },
+    )
+    test.ctx.goals.create(test.agent, { objective: 'run every configured round', maxGoalRounds: 8 })
+
+    await waitForGoal(test.ctx, test.agent, goal => goal?.phase === 'blocked')
+
+    const messages = test.agent.session.snapshotEvents().flatMap(event =>
+      event.type === 'user/message' ? [event.data] : [])
+    const injected = messages.flatMap((message, index) => {
+      if (message.source.kind !== 'goal-round-driver') return []
+      const prior = messages[index - 1]
+      const block = message.content[0]
+      if (prior?.source.kind !== 'goal' || block?.type !== 'text') return []
+      return [{ round: prior.source.round, text: block.text }]
+    })
+
+    expect(injected).toEqual([
+      { round: 4, text: injection },
+      { round: 8, text: injection },
+    ])
+    expect(requestText(test.adapter.requests[3]!)).toContain(injection)
   })
 
   it('never adopts activation from an already-live driver and waits for explicit resume', async () => {

@@ -9,10 +9,18 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type { GoalMessageSource, GoalRef, GoalView } from '@deepseek-ai/dsh-goal'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, MessageId, MessageSource } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, ContextFormed, MessageId, MessageSource } from '@deepseek-ai/dsh-llm'
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'goal-round-driver': { kind: 'goal-round-driver' } & ContextFormed
+  }
+}
 import type { Session, SessionEvent, UserMessage } from '@deepseek-ai/dsh-session'
+import { resolveConfig, roundInjection } from './config.ts'
+import type { Config } from './config.ts'
 import { renderGoalRoundPrompt } from './prompt.ts'
 
+export { Config } from './config.ts'
 export { renderGoalRoundPrompt } from './prompt.ts'
 
 export const name = 'goal-round-driver'
@@ -29,6 +37,7 @@ interface RoundIdentity {
 interface RoundAttempt extends RoundIdentity {
   readonly messageId: MessageId
   readonly content: ContentBlock[]
+  readonly injection: UserMessage | undefined
   phase: 'queued' | 'claimed' | 'admitted'
   cancelled: boolean
   stale: boolean
@@ -62,6 +71,18 @@ function sameQueued(content: readonly ContentBlock[], source: MessageSource, att
   return isGoalRoundSource(source) && sameRound(source, attempt) && isDeepStrictEqual(content, attempt.content)
 }
 
+/** Insert a reserved supplemental message directly after its admitted goal message. */
+function injectAfterGoalMessage(
+  messages: UserMessage[],
+  messageId: MessageId,
+  injection: UserMessage | undefined,
+): UserMessage[] {
+  if (injection === undefined) return messages
+  const index = messages.findIndex(message => message.id === messageId)
+  if (index === -1) return messages
+  return [...messages.slice(0, index + 1), injection, ...messages.slice(index + 1)]
+}
+
 /** Exact current ref for a view. */
 function goalRef(goal: GoalView): GoalRef {
   return { id: goal.id, revision: goal.revision }
@@ -72,8 +93,13 @@ function renderThrown(value: unknown): string {
   return value instanceof Error ? value.message : String(value)
 }
 
-/** Install automatic same-session continuation and its race fences. */
-export function apply(ctx: Context): void {
+/**
+ * Install automatic same-session continuation and its race fences.
+ * @param ctx - Cordis context providing the agent, goal, and session services.
+ * @param config - cyclic supplemental-message configuration for admitted goal rounds.
+ */
+export function apply(ctx: Context, config: Config = {}): void {
+  const resolved = resolveConfig(config)
   const states = new Map<Agent, DriverState>()
 
   /** Create state for an exact currently live agent. */
@@ -173,9 +199,14 @@ export function apply(ctx: Context): void {
 
     const round = goal.roundsStarted + 1
     const content = renderGoalRoundPrompt(goal, round)
+    const injectedText = roundInjection(resolved, round)
     const message = createUserMessage({
       content,
       source: { kind: 'goal', goalId: goal.id, revision: goal.revision, round },
+    })
+    const injection = injectedText === undefined ? undefined : createUserMessage({
+      content: [{ type: 'text', text: injectedText }],
+      source: { kind: 'goal-round-driver' },
     })
     const reservation: RoundAttempt = {
       goalId: goal.id,
@@ -183,6 +214,7 @@ export function apply(ctx: Context): void {
       round,
       messageId: message.id,
       content,
+      injection,
       phase: 'queued',
       cancelled: false,
       stale: false,
@@ -421,7 +453,11 @@ export function apply(ctx: Context): void {
         requestDrive(state)
         return { kind: 'reject' }
       }
-      return { ...decision, startsRequestSeries: true }
+      return {
+        ...decision,
+        messages: injectAfterGoalMessage(decision.messages, submitted.id, state.attempt?.injection),
+        startsRequestSeries: true,
+      }
     })
 
     // Loading a lifecycle driver over existing agents never inherits hidden

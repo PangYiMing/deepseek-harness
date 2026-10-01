@@ -8749,10 +8749,20 @@ importers:
         version: link:../../typert/protocol
 
   packages/goal/goal-round-driver:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
         version: link:../../../vendor/cordis
+      '@deepseek-ai/cordis-plugin-include':
+        specifier: workspace:~
+        version: link:../../../vendor/include
+      '@deepseek-ai/cordis-plugin-loader':
+        specifier: workspace:~
+        version: link:../../../vendor/loader
       '@deepseek-ai/dsh-agent':
         specifier: workspace:*
         version: link:../../core/agent

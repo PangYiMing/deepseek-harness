@@ -1,0 +1,29 @@
+docs/config-catalog.zh.md
+  s_718c9c24d858cc::t_b20a8b1c323b57 1279-1295,1622,1697-1708,4022
+docs/superpowers/plans/2026-09-21-goal-round-injections.i18n.yaml
+  s_718c9c24d858cc::t_9b738e4b50d701 1-19
+packages/preset/agent-preset/skills/cordis-composition-reference/references/packages.md
+  s_718c9c24d858cc::t_b20a8b1c323b57 230
+docs/superpowers/plans/2026-09-21-goal-round-injections.md
+  s_718c9c24d858cc::t_c96acda8a43a74 1-170
+docs/superpowers/plans/2026-09-21-goal-round-injections.zh.md
+  s_718c9c24d858cc::t_c96acda8a43a74 1-170
+docs/config-catalog.md
+  s_718c9c24d858cc::t_b20a8b1c323b57 1277-1293,1620,1695-1706,4020
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.45-trip",
+  "base_commit_sha": "2bb74a859ec451b56d8114ad2241aa04676fe418",
+  "prompts": {},
+  "sessions": {
+    "s_718c9c24d858cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7227b3b-a98e-4c28-83a1-27fe269660c8",
+        "model": "glm-5.3"
+      },
+      "human_author": "ympang <ympang@trip.com>"
+    }
+  }
+}

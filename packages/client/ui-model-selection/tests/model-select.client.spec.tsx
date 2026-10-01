@@ -55,6 +55,21 @@ function state(overrides: Partial<ModelDirectoryState> = {}): ModelDirectoryStat
 
 afterEach(cleanup)
 
+/** Mount the seat and open its root pane; returns the selection spy. */
+function mountOpen() {
+  const select = vi.fn().mockResolvedValue({ ok: true, value: undefined })
+  render(<ModelSelect
+    locked={false}
+    available
+    directory={createSnapshotStore(state())}
+    load={vi.fn()}
+    select={select}
+    t={t}
+  />)
+  fireEvent.click(screen.getByRole('button', { name: /选择模型/ }))
+  return select
+}
+
 describe('ModelSelect reasoning effort', () => {
   it('renders effort names without descriptions and submits the effort as part of the session selection', async () => {
     const directory = createSnapshotStore<ModelDirectoryState>(state())
@@ -308,11 +323,13 @@ describe('ModelSelect reasoning effort', () => {
       expect(menu.style.left).toBe('12px')
       expect(menu.style.top).toBe('12px')
       // Interactions inside the trigger subtree or the portaled card stay open.
-      expect(fireEvent.mouseDown(menu)).toBe(true)
+      expect(fireEvent.pointerDown(menu)).toBe(true)
+      // Root mousedown still keeps focus on a button (the WebKit blur fix);
+      // pointerdown carries no such default, so only dismissal rides it.
       expect(fireEvent.mouseDown(trigger)).toBe(false)
       fireEvent.blur(trigger, { relatedTarget: menu })
       expect(screen.getByRole('menu')).toBeTruthy()
-      fireEvent.mouseDown(document.body)
+      fireEvent.pointerDown(document.body)
       expect(screen.queryByRole('menu')).toBeNull()
     } finally {
       Object.defineProperty(HTMLElement.prototype, 'offsetWidth', offsetWidth)
@@ -337,20 +354,6 @@ describe('ModelSelect reasoning effort', () => {
 })
 
 describe('ModelSelect keyboard walk', () => {
-  function mountOpen() {
-    const select = vi.fn().mockResolvedValue({ ok: true, value: undefined })
-    render(<ModelSelect
-      locked={false}
-      available
-      directory={createSnapshotStore(state())}
-      load={vi.fn()}
-      select={select}
-      t={t}
-    />)
-    fireEvent.click(screen.getByRole('button', { name: /选择模型/ }))
-    return select
-  }
-
   it.each(['model', 'effort'])('prevents button mousedown defaults in the %s pane without selecting it', (pane) => {
     const select = mountOpen()
     const cell = screen.getByRole('menuitem', { name: pane === 'model' ? /^模型/ : /推理等级/ })
@@ -597,4 +600,132 @@ it('restores the account model name after login without changing the saved route
   act(() => { directory.update((snapshot) => { snapshot.groups = groups; snapshot.routable = true }) })
   expect(screen.getByRole('button', { name: /选择模型，当前/ }).textContent).toBe('DeepSeek FlashHigh')
   expect(directory.getSnapshot().current).toEqual(selected)
+})
+
+describe('ModelSelect touch activation', () => {
+  /** One finger down and up: no click, exactly as a touch device delivers a tap. */
+  function tap(target: Element, travel: { dx?: number; dy?: number } = {}, pointerId = 1): void {
+    const clientX = 100
+    const clientY = 100
+    fireEvent.pointerDown(target, { pointerType: 'touch', pointerId, clientX, clientY })
+    fireEvent.pointerUp(target, {
+      pointerType: 'touch',
+      pointerId,
+      clientX: clientX + (travel.dx ?? 0),
+      clientY: clientY + (travel.dy ?? 0),
+    })
+  }
+
+  it('drills and selects from the gesture alone, with no synthesized click', async () => {
+    const select = mountOpen()
+    tap(screen.getByRole('menuitem', { name: /推理等级/ }))
+    expect(screen.getAllByRole('menuitemradio').map(row => row.textContent))
+      .toEqual(['Off', 'High', 'Max'])
+
+    tap(screen.getByRole('menuitemradio', { name: /Max/ }))
+    expect(select).toHaveBeenCalledWith({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      reasoningEffort: 'max',
+    })
+    await waitFor(() => { expect(screen.queryByRole('menu')).toBeNull() })
+  })
+
+  it('swallows the companion click a browser sends after the tap', () => {
+    const select = mountOpen()
+    tap(screen.getByRole('menuitem', { name: /推理等级/ }))
+    const max = screen.getByRole('menuitemradio', { name: /Max/ })
+    tap(max)
+    expect(select).toHaveBeenCalledTimes(1)
+    // A browser that does send its own click must not select a second time.
+    fireEvent.click(max)
+    expect(select).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads travel past the slop as a scroll and leaves the pane alone', () => {
+    mountOpen()
+    tap(screen.getByRole('menuitem', { name: /推理等级/ }), { dx: 40 })
+    expect(screen.queryByRole('menuitemradio')).toBeNull()
+    expect(screen.getByRole('menu')).toBeTruthy()
+  })
+
+  it('leaves a mouse to the click it already has', () => {
+    mountOpen()
+    const cell = screen.getByRole('menuitem', { name: /推理等级/ })
+    fireEvent.pointerDown(cell, { pointerType: 'mouse', pointerId: 1, clientX: 100, clientY: 100 })
+    fireEvent.pointerUp(cell, { pointerType: 'mouse', pointerId: 1, clientX: 100, clientY: 100 })
+    // The pointer path stayed out of the way: nothing ran from the gesture.
+    expect(screen.queryByRole('menuitemradio')).toBeNull()
+    fireEvent.click(cell)
+    expect(screen.getAllByRole('menuitemradio').map(row => row.textContent))
+      .toEqual(['Off', 'High', 'Max'])
+  })
+
+  it('ignores a release that ended no tap of its own pointer', () => {
+    mountOpen()
+    const cell = screen.getByRole('menuitem', { name: /推理等级/ })
+    // No gesture opened: a stray release is nobody's tap.
+    fireEvent.pointerUp(cell, { pointerType: 'touch', pointerId: 7, clientX: 100, clientY: 100 })
+    // A release from a different pointer than the one that went down is not one either.
+    fireEvent.pointerDown(cell, { pointerType: 'touch', pointerId: 7, clientX: 100, clientY: 100 })
+    fireEvent.pointerUp(cell, { pointerType: 'touch', pointerId: 8, clientX: 100, clientY: 100 })
+    expect(screen.queryByRole('menuitemradio')).toBeNull()
+    expect(screen.getByRole('menu')).toBeTruthy()
+  })
+
+  it('does not act for a tap that lands on the card itself', () => {
+    mountOpen()
+    tap(screen.getByRole('menu'))
+    expect(screen.queryByRole('menuitemradio')).toBeNull()
+    expect(screen.getByRole('menu')).toBeTruthy()
+  })
+
+  it('keeps the card through the focus churn a tap causes', () => {
+    mountOpen()
+    const trigger = screen.getByRole('button', { name: /选择模型/ })
+    const cell = screen.getByRole('menuitem', { name: /推理等级/ })
+    fireEvent.pointerDown(cell, { pointerType: 'touch', pointerId: 1, clientX: 100, clientY: 100 })
+    // A touch browser may drop focus mid-gesture (the row never took it): the
+    // tap itself still decides, so the row stays mounted until it lands.
+    fireEvent.blur(trigger, { relatedTarget: null })
+    expect(screen.getByRole('menu')).toBeTruthy()
+    fireEvent.pointerUp(cell, { pointerType: 'touch', pointerId: 1, clientX: 100, clientY: 100 })
+    expect(screen.getAllByRole('menuitemradio').map(row => row.textContent))
+      .toEqual(['Off', 'High', 'Max'])
+    // Outside a gesture the same blur closes the card, as a mouse focus move does.
+    fireEvent.blur(trigger, { relatedTarget: null })
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('ends the gesture on a cancelled pointer, which owes no tap and no click', () => {
+    mountOpen()
+    const cell = screen.getByRole('menuitem', { name: /推理等级/ })
+    fireEvent.pointerDown(cell, { pointerType: 'touch', pointerId: 1, clientX: 100, clientY: 100 })
+    fireEvent.pointerCancel(cell, { pointerType: 'touch', pointerId: 1, clientX: 100, clientY: 100 })
+    fireEvent.pointerUp(cell, { pointerType: 'touch', pointerId: 1, clientX: 100, clientY: 100 })
+    expect(screen.queryByRole('menuitemradio')).toBeNull()
+    expect(screen.getByRole('menu')).toBeTruthy()
+  })
+
+  it('leaves a row a selection in flight has disabled inert', () => {
+    const select = vi.fn().mockResolvedValue({ ok: true, value: undefined })
+    render(<ModelSelect
+      locked={false}
+      available
+      // Rows a selection in flight disabled: `busy` is the pending selection.
+      directory={createSnapshotStore(state({
+        status: 'selecting',
+        pending: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+      }))}
+      load={vi.fn()}
+      select={select}
+      t={t}
+    />)
+    fireEvent.click(screen.getByRole('button', { name: /选择模型/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /^模型/ }))
+    const row = screen.getAllByRole('menuitemradio')[0] as HTMLButtonElement
+    expect(row.disabled).toBe(true)
+    tap(row)
+    expect(select).not.toHaveBeenCalled()
+  })
 })

@@ -23,6 +23,7 @@ import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore,
   type CSSProperties, type KeyboardEvent, type FocusEvent,
+  type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -47,6 +48,9 @@ interface EffortChoice {
 
 /** Unplaced portal card: hidden but laid out at a fixed origin so offsetWidth/offsetHeight are real (Menu primitive's measure pass). */
 const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
+
+/** Tap slop in CSS pixels: a pointer that traveled farther is a scroll, not a tap. */
+const TAP_SLOP = 10
 
 /**
  * Render the composer model seat.
@@ -77,6 +81,11 @@ export function ModelSelect(
   const [menuPos, setMenuPos] = useState<CSSProperties | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const id = useId()
+  // Touch gesture state: the pointer that went down over the card, the row its
+  // gesture already ran, and whether the click now in flight is that replay.
+  const gestureRef = useRef<{ id: number; x: number; y: number } | null>(null)
+  const tapRef = useRef<HTMLButtonElement | null>(null)
+  const replayingRef = useRef(false)
 
   const groups = useMemo(() => state.groups.toSorted((left, right) =>
     (left.id === 'deepseek-account' ? 0 : left.id === 'deepseek-official' ? 1 : 2)
@@ -124,16 +133,19 @@ export function ModelSelect(
     load()
   }
 
+  // Dismissal rides pointerdown — the event every input device produces, unlike
+  // the mouse-only mousedown this seat used to listen for (the shared
+  // useDismissOnOutsidePointer primitive draws the same line).
   useEffect(() => {
     if (!open) return
-    const closeOutside = (event: MouseEvent): void => {
+    const closeOutside = (event: PointerEvent): void => {
       // The portaled card is outside the trigger subtree; check both.
       if (rootRef.current?.contains(event.target as Node) === true) return
       if (menuRef.current?.contains(event.target as Node) === true) return
       setOpen(false)
     }
-    document.addEventListener('mousedown', closeOutside)
-    return () => { document.removeEventListener('mousedown', closeOutside) }
+    document.addEventListener('pointerdown', closeOutside)
+    return () => { document.removeEventListener('pointerdown', closeOutside) }
   }, [open])
 
   // A pane switch unmounts the row that had focus, which drops focus onto the
@@ -235,6 +247,8 @@ export function ModelSelect(
   }
 
   const onRootKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    // A keystroke is its own interaction: no tap companion is outstanding.
+    tapRef.current = null
     if (event.key === 'Escape' && open) {
       event.preventDefault()
       // Escape backs out of a drilled pane first, then closes.
@@ -277,11 +291,55 @@ export function ModelSelect(
   }
 
   const onBlur = (event: FocusEvent<HTMLDivElement>): void => {
+    // A focus change in the middle of a touch gesture is the browser's own
+    // churn around the tap (a button that never took focus, a row about to
+    // unmount): the gesture's outcome decides, not this. Mouse focus moves
+    // outside a gesture keep closing the card as before.
+    if (gestureRef.current !== null) return
     if (event.relatedTarget instanceof Node && (
       rootRef.current?.contains(event.relatedTarget) === true
       || menuRef.current?.contains(event.relatedTarget) === true
     )) return
     close()
+  }
+
+  // Row activation on touch. pointerup is the tap: the browser has not run the
+  // compatibility mouse sequence or the focus move that follows it yet, so the
+  // row is still mounted and the gesture itself decides. Movement past the slop
+  // is a scroll, and a mouse keeps the click it already has.
+  const onCardPointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    // A new gesture retires any companion click still owed by the last one.
+    tapRef.current = null
+    if (event.pointerType === 'mouse') return
+    gestureRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY }
+  }
+
+  const onCardPointerUp = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const start = gestureRef.current
+    gestureRef.current = null
+    if (start === null || start.id !== event.pointerId) return
+    if (Math.abs(event.clientX - start.x) > TAP_SLOP || Math.abs(event.clientY - start.y) > TAP_SLOP) return
+    const target = event.target instanceof Element ? event.target.closest('button') : null
+    if (!(target instanceof HTMLButtonElement) || target.disabled) return
+    // Run the row now; the browser's own click for this tap is eaten below.
+    tapRef.current = target
+    replayingRef.current = true
+    try { target.click() } finally { replayingRef.current = false }
+  }
+
+  const onCardClickCapture = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    // The replay above, and every mouse or keyboard click, are the row's own.
+    if (replayingRef.current || tapRef.current === null) return
+    tapRef.current = null
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  // A cancelled pointer (a system gesture taking over) ends the gesture without
+  // a tap, and owes no companion click.
+  const onCardPointerCancel = (): void => {
+    gestureRef.current = null
+    tapRef.current = null
   }
 
   const settleSelection = (result: Awaited<ReturnType<ModelSelectInjected['select']>>): void => {
@@ -399,6 +457,10 @@ export function ModelSelect(
           role="menu"
           aria-label={t('menu.aria')}
           aria-busy={state.status === 'loading' || busy}
+          onPointerDown={onCardPointerDown}
+          onPointerUp={onCardPointerUp}
+          onPointerCancel={onCardPointerCancel}
+          onClickCapture={onCardClickCapture}
         >
           {pane === 'root' && (
             <>

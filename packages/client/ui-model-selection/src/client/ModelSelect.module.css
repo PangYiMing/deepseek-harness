@@ -27,6 +27,9 @@
   line-height: 20px;
   font-weight: 400;
   cursor: pointer;
+  /* A tap on the chip or a row is an activation, never the first half of a
+     double-tap zoom: the browser must not delay it or divert it to a gesture. */
+  touch-action: manipulation;
 }
 
 .trigger:hover:not(:disabled) {
@@ -192,6 +195,7 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .option:hover:not(:disabled),
@@ -257,6 +261,7 @@
   line-height: 20px;
   cursor: pointer;
   text-align: left;
+  touch-action: manipulation;
 }
 
 .cell:hover {

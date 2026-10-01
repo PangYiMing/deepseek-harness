@@ -150,6 +150,18 @@ export interface PiAiProviderProfile {
   defaultInput?: PiAiModality[]
   /** Provider request headers, validated against Fetch when the profile resolves; Harness attribution wins reserved names. */
   headers?: Record<string, string>
+  /**
+   * Name of the request header carrying the conversation id, for gateways
+   * that route by per-conversation session affinity and reject requests
+   * without one. OpenCode routes — route key starting with `opencode`, or
+   * every serving endpoint on `opencode.ai` — default to the gateway's
+   * required `x-opencode-session`, so this field names a different header
+   * there or serves another session-affinity gateway. Sent on every request
+   * that names a session id; replaces a same-named static `headers` entry,
+   * whose fixed value cannot vary by conversation. Validated against Fetch
+   * when the profile resolves; Harness attribution still wins reserved names.
+   */
+  sessionHeader?: string
   /** Provider-neutral pi-ai reasoning level. */
   reasoning?: ModelThinkingLevel
   /** Token budgets used by reasoning providers that support them. */
@@ -335,6 +347,7 @@ const profile = z.object({
   defaultMaxTokens: z.number().step(1).min(1).default(DEFAULT_MAX_TOKENS),
   defaultInput: z.array(z.union(MODALITIES)).default([...DEFAULT_INPUT]),
   headers: z.dict(z.string()),
+  sessionHeader: z.string(),
   reasoning: z.union(THINKING_LEVELS),
   thinkingBudgets,
   cacheRetention: z.union(['none', 'short', 'long']),
@@ -399,6 +412,28 @@ function assertValidHeaders(provider: string, headers: Readonly<Record<string, s
   }
 }
 
+/** Header the OpenCode gateway requires on every inference request for per-conversation routing. */
+const OPENCODE_SESSION_HEADER = 'x-opencode-session'
+
+/**
+ * Whether this route serves the OpenCode gateway, which rejects requests
+ * without a per-conversation session header. The installed catalog names its
+ * routes `opencode` and `opencode-go`; a hand-declared route names it by
+ * endpoint instead. Scoped so no other provider sends the header.
+ */
+function isOpenCodeRoute(provider: string, endpoints: readonly string[]): boolean {
+  if (provider.startsWith('opencode')) return true
+  return endpoints.some((endpoint) => {
+    try {
+      const { hostname } = new URL(endpoint)
+      return hostname === 'opencode.ai' || hostname.endsWith('.opencode.ai')
+    } catch (_malformedEndpoint) {
+      // An endpoint Fetch/URL cannot parse fails the request path on its own; it cannot make this route an OpenCode one.
+      return false
+    }
+  })
+}
+
 /**
  * Resolve scalar defaults and materialize each route's serviceable models.
  * Deferred catalog validation retains diagnostics without deleting configured
@@ -426,6 +461,12 @@ export function resolveProfiles(
       throw new Error(`llm-pi-ai: provider "${provider}" has an empty displayName`)
     }
     assertValidHeaders(provider, source.headers)
+    if (source.sessionHeader !== undefined) {
+      if (source.sessionHeader.length === 0) {
+        throw new Error(`llm-pi-ai: provider "${provider}" sessionHeader must be a non-empty header name`)
+      }
+      assertValidHeaders(provider, { [source.sessionHeader]: 'session-id' })
+    }
     const streamIdleTimeoutMs = source.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS
     if (!Number.isFinite(streamIdleTimeoutMs)
       || streamIdleTimeoutMs <= 0
@@ -488,6 +529,14 @@ export function resolveProfiles(
       catalogError ??= error.message
     }
     const { apiKeyEnv, retryPolicy, models: _models, displayName: _displayName, ...rest } = source
+    // An OpenCode route serves no request without the gateway's session
+    // header, so the default is part of serving the route, not a deployment
+    // choice; an explicit field still names a different header.
+    const sessionHeader = source.sessionHeader
+      ?? (isOpenCodeRoute(provider, [
+        ...source.baseURL === undefined ? [] : [source.baseURL],
+        ...(catalog?.models ?? []).map(model => model.baseUrl),
+      ]) ? OPENCODE_SESSION_HEADER : undefined)
     resolved.set(provider, {
       ...rest,
       provider,
@@ -499,6 +548,7 @@ export function resolveProfiles(
       requestImageMaxBytes,
       retryPolicy: resolveRetryPolicy(retryPolicy, `llm-pi-ai: provider "${provider}" retryPolicy`),
       ...rest.headers === undefined ? {} : { headers: { ...rest.headers } },
+      ...sessionHeader === undefined ? {} : { sessionHeader },
       ...rest.thinkingBudgets === undefined ? {} : { thinkingBudgets: { ...rest.thinkingBudgets } },
       configuredMaxTokens: catalog?.configuredMaxTokens ?? new Map(),
       modelErrors: catalog?.modelErrors ?? new Map(),

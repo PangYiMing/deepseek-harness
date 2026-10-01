@@ -123,6 +123,67 @@ describe('PiAiAdapter provider routing', () => {
     expect(server.headers[0]?.['user-agent']).toBe(userAgent())
   })
 
+  it('sends the configured sessionHeader with the conversation id', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await harness(server.url, { sessionHeader: 'x-opencode-session' })
+    await assemble(ctx, {
+      model: 'deepseek-flash',
+      messages: [],
+      sessionId: 'session-1' as never,
+    })
+    expect(server.headers[0]?.['x-opencode-session']).toBe('session-1')
+  })
+
+  it('auto-sends x-opencode-session on the opencode-go route with no profile configuration', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter(['opencode-go'], new PiAiAdapter({
+      profiles: () => resolveProfiles({ 'opencode-go': { apiKeyEnv: 'PI_TEST_KEY', baseURL: server.url } }),
+      resolveApiKey: () => Promise.resolve('test-key'),
+      auth: memoryAuth(),
+    }))
+    await assemble(ctx, {
+      provider: 'opencode-go',
+      model: 'deepseek-v4-flash',
+      messages: [],
+      sessionId: 'session-1' as never,
+    })
+    expect(server.headers[0]?.['x-opencode-session']).toBe('session-1')
+  })
+
+  it('sends no session header on a non-OpenCode route without sessionHeader configured', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await harness(server.url)
+    await assemble(ctx, {
+      model: 'deepseek-flash',
+      messages: [],
+      sessionId: 'session-1' as never,
+    })
+    expect(server.headers[0]).not.toHaveProperty('x-opencode-session')
+  })
+
+  it('omits the configured sessionHeader when the request names no session id', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await harness(server.url, { sessionHeader: 'x-opencode-session' })
+    await assemble(ctx, { model: 'deepseek-flash', messages: [] })
+    expect(server.headers[0]).not.toHaveProperty('x-opencode-session')
+  })
+
+  it('replaces a same-named static header entry with the conversation id', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await harness(server.url, {
+      sessionHeader: 'x-opencode-session',
+      headers: { 'X-OpenCode-Session': 'shared-static-value' },
+    })
+    await assemble(ctx, {
+      model: 'deepseek-flash',
+      messages: [],
+      sessionId: 'session-1' as never,
+    })
+    expect(server.headers[0]?.['x-opencode-session']).toBe('session-1')
+  })
+
   it('forwards common stream options and profile reasoning', async () => {
     const server = await mockServer([{ events: textEvents }])
     const ctx = await harness(server.url, {

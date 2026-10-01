@@ -1,0 +1,23 @@
+packages/llm/llm-pi-ai/src/adapter.ts
+  s_718c9c24d858cc::t_6f54bc4b9733fd 204-214,216-218,220-221,400-405
+packages/llm/llm-pi-ai/src/config.ts
+  s_718c9c24d858cc::t_6f54bc4b9733fd 153-164,350,415-436,464-469,532-539,551
+packages/llm/llm-pi-ai/tests/adapter.spec.ts
+  s_718c9c24d858cc::t_59aa0fd6e9b312 126-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.45-trip",
+  "base_commit_sha": "5e45ad622a7466ec952375cbed5c839a50479267",
+  "prompts": {},
+  "sessions": {
+    "s_718c9c24d858cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7227b3b-a98e-4c28-83a1-27fe269660c8",
+        "model": "glm-5.3"
+      },
+      "human_author": "ympang <ympang@trip.com>"
+    }
+  }
+}

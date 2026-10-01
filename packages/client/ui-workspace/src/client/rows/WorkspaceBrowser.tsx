@@ -38,7 +38,9 @@ import {
 } from '../tree.ts'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
 import { AnimatedRows } from './AnimatedRows.tsx'
-import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
+import {
+  FLAT_SESSION_ORDER_KEY, type SessionBoardStatus, type SessionGroupBy,
+} from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
 import css from './WorkspaceBrowser.module.css'
 
@@ -53,6 +55,8 @@ const SEARCH_DEBOUNCE_MS = 250
 const SEARCH_QUERY_MAX_CODE_UNITS = 500
 /** Idle Session rows visible per Workspace before the local overflow control. */
 const COLLAPSED_SESSION_LIMIT = 5
+/** Stand-in for rehydrated view state persisted before board marks existed. */
+const NO_BOARD_MARKS: Readonly<Record<string, SessionBoardStatus>> = {}
 
 /** Keep provisional and running rows outside the idle-session quota, including parents with running children. */
 function collapsedSessionRows(sessions: readonly SessionNode[], limit = COLLAPSED_SESSION_LIMIT): {
@@ -241,6 +245,10 @@ type SessionTreeProps = Pick<
   nestWorkspaces: boolean
   /** Explicit persisted group expansion, including descendants in tree mode. */
   groupExpansion: Readonly<Record<string, boolean>>
+  /** Browser-local board mark per Session id; an id absent here is unmarked. */
+  sessionBoardStatus: Readonly<Record<string, SessionBoardStatus>>
+  /** Write one Session's board mark (row menu action). */
+  setSessionBoardStatus: (sessionId: SessionId, status: SessionBoardStatus) => void
   /** Persist one Workspace group's expansion. */
   setGroupExpanded: (key: string, expanded: boolean) => void
   /** Save a drag order and select Manual. */
@@ -286,6 +294,7 @@ function SessionTree({
   renderSlot,
   insertWorkspaceBefore,
   nestWorkspaces, groupExpansion, setGroupExpanded,
+  sessionBoardStatus, setSessionBoardStatus,
   setSessionOrder, home, t,
   revealSessionId, onSessionRevealed, shortcuts,
 }: SessionTreeProps) {
@@ -569,6 +578,8 @@ function SessionTree({
               now={now}
               onOpen={open}
               onRenameRequest={onSessionRenameRequest}
+              boardStatus={sessionBoardStatus[node.id]}
+              onSetBoardStatus={setSessionBoardStatus}
               renderSlot={renderSlot}
               onReveal={node.id === revealSessionId && group.key === revealGroup
                 ? () => { onSessionRevealed(node.id) }
@@ -629,12 +640,15 @@ function SessionTree({
 function FlatList({
   list, sessionIds, rowState, onLeaveArchivedOnly, useSessionStatus, open, onSessionRenameRequest,
   usePanelInfo, setSessionOrder, workspaceReady, animationResetKey,
+  sessionBoardStatus, setSessionBoardStatus,
   revealSessionId, onSessionRevealed, renderSlot, t,
 }: Pick<
   SessionTreeProps,
   | 'useSessionStatus'
   | 'open'
   | 'onSessionRenameRequest'
+  | 'sessionBoardStatus'
+  | 'setSessionBoardStatus'
   | 'renderSlot'
   | 'usePanelInfo'
   | 'setSessionOrder'
@@ -693,6 +707,8 @@ function FlatList({
               now={now}
               onOpen={open}
               onRenameRequest={onSessionRenameRequest}
+              boardStatus={sessionBoardStatus[node.id]}
+              onSetBoardStatus={setSessionBoardStatus}
               renderSlot={renderSlot}
               onReveal={node.id === revealSessionId
                 ? () => { onSessionRevealed(node.id) }
@@ -897,6 +913,7 @@ export function WorkspaceBrowser({
   const archivedFilter = useStore(s => s.archivedFilter ?? 'default')
   const groupExpansion = useStore(s => s.groupExpansion)
   const sessionOrderByAccount = useStore(s => s.sessionOrderByAccount)
+  const sessionBoardStatus = useStore(s => s.sessionBoardStatus) ?? NO_BOARD_MARKS
   // Archived sessions are not openable: the row stays visible under the
   // filter but a click explains instead of navigating.
   const guardedOpen = (sessionId: SessionId): void => {
@@ -1371,6 +1388,8 @@ export function WorkspaceBrowser({
                 useSessionStatus={useSessionStatus}
                 open={guardedOpen}
                 onSessionRenameRequest={requestSessionRename}
+                sessionBoardStatus={sessionBoardStatus}
+                setSessionBoardStatus={actions.setSessionBoardStatus}
                 renderSlot={renderSlot}
                 setSessionOrder={saveSessionOrder}
                 revealSessionId={revealSessionId}
@@ -1393,6 +1412,8 @@ export function WorkspaceBrowser({
                 animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
                 groupExpansion={groupExpansion}
                 setGroupExpanded={actions.setGroupExpanded}
+                sessionBoardStatus={sessionBoardStatus}
+                setSessionBoardStatus={actions.setSessionBoardStatus}
                 setSessionOrder={saveSessionOrder}
                 rowState={rowState}
                 onLeaveArchivedOnly={leaveArchivedOnly}

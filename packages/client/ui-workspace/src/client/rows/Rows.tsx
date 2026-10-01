@@ -11,19 +11,22 @@
  * session and workspace hover cards are suppressed while a menu is open.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { RefObject } from 'react'
+import type { MouseEvent as ReactMouseEvent, ReactNode, RefObject } from 'react'
 import clsx from 'clsx'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  HoverCard, IconArchiveOutlineRegular, IconEditOutlineRegular,
-  IconEllipsisOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
-  IconNewChatOutlineRegular, IconPinFillRegular, IconTrashOutlineRegular,
-  IconTriangleRightFillRegular, IconUnarchiveOutlineRegular, Menu, relativeTime, StateDot, Tooltip,
+  HoverCard, IconArchiveOutlineRegular, IconCheckOutlineRegular,
+  IconEditOutlineRegular, IconEllipsisOutlineRegular, IconFolderCloseRegular, IconFolderOpenRegular,
+  IconInspectOutlineRegular, IconLoadingOutlineRegular, IconNewChatOutlineRegular, IconPinFillRegular,
+  IconPlanOutlineRegular, IconQueueOutlineRegular, IconTrashOutlineRegular,
+  IconTriangleRightFillRegular, IconUnarchiveOutlineRegular, IconWarningOutlineRegular,
+  Menu, MenuItemButton, relativeTime, StateDot, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ShortcutCatalogEntry } from '@deepseek-ai/dsh-client-shortcuts/client'
 import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { MenuOpenState, WorkspaceBrowserProps } from '../contract/slots.ts'
+import { SESSION_BOARD_STATUSES, type SessionBoardStatus } from '../stores.ts'
 import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
 import css from './Rows.module.css'
 
@@ -43,6 +46,89 @@ type RowRenderSlots = PropsRenderSlots<
   | 'sidebar.session.row.leading'
   | 'sidebar.session.row.hover'
 >['renderSlot']
+
+/**
+ * Menu glyph per board status, normalized into the menu's 16px icon slot (the
+ * 14-native glyphs take the slot the 16-native ones fill).
+ */
+const BOARD_STATUS_ICONS: Record<SessionBoardStatus, ReactNode> = {
+  planning: <IconPlanOutlineRegular size={16} />,
+  todo: <IconQueueOutlineRegular size={16} />,
+  inProgress: <IconLoadingOutlineRegular />,
+  inReview: <IconInspectOutlineRegular size={16} />,
+  blocked: <IconWarningOutlineRegular />,
+  done: <IconCheckOutlineRegular />,
+}
+
+/**
+ * Words an operator's own title tag may use for a column instead of this
+ * sidebar's localized label. They come from hand-typed tags (`【完成】`), not
+ * product copy, so one table matches every language the operator writes in;
+ * the localized labels are matched separately.
+ */
+const BOARD_STATUS_ALIASES: Readonly<Record<SessionBoardStatus, readonly string[]>> = {
+  planning: ['未开始', '规划', 'planning', 'planned', 'backlog'],
+  todo: ['待处理', '库存', 'todo', 'to do', 'pending'],
+  inProgress: ['开发中', '处理中', 'in progress', 'doing', 'wip'],
+  inReview: ['审核', '待审', '评审', 'in review', 'review', 'reviewing'],
+  blocked: ['阻塞', '卡住', '挂起', 'blocked', 'stuck'],
+  done: ['完成', '搞定', 'done', 'finished', 'complete', 'completed'],
+}
+
+/** A tagged Session whose tag names no column still carries work: the first column it can sit in. */
+const UNKNOWN_TAG_STATUS: SessionBoardStatus = 'todo'
+
+/**
+ * Split a leading title tag from a stored title: `【完成】这个支持…` or `[Done] x`.
+ * A tag is either bracket pair this sidebar writes, and it names the Session
+ * rather than belonging to its title text.
+ * @param title - the stored display title.
+ * @returns the tag's inner text and the title text after it, or undefined without a tag.
+ */
+function leadingTitleTag(title: string): { tag: string; rest: string } | undefined {
+  const close = title.startsWith('【') ? '】' : title.startsWith('[') ? ']' : undefined
+  if (close === undefined) return undefined
+  const end = title.indexOf(close, 1)
+  if (end === -1) return undefined
+  return { tag: title.slice(1, end), rest: title.slice(end + 1).trimStart() }
+}
+
+/**
+ * The column a title tag names. A word matching no label or alias falls back to
+ * the column that holds tagged work rather than leaving the tag unexplained.
+ * @param tag - the tag's inner text.
+ * @param t - the browser root's locale seat.
+ * @returns the column the tag reads as.
+ */
+function boardStatusFromTag(tag: string, t: RowTranslate): SessionBoardStatus {
+  const word = tag.trim().toLowerCase()
+  if (word === '') return UNKNOWN_TAG_STATUS
+  const matches = (status: SessionBoardStatus): boolean =>
+    [t(`boardStatus.${status}`).toLowerCase(), ...BOARD_STATUS_ALIASES[status]]
+      .some(entry => word === entry || word.includes(entry) || entry.includes(word))
+  return SESSION_BOARD_STATUSES.find(matches) ?? UNKNOWN_TAG_STATUS
+}
+
+/**
+ * How a marked or tagged row reads: the column its mark names, or else the one
+ * its leading title tag names, plus the title to render. The tag leaves the
+ * title either way — the board tag takes its place — while a title with neither
+ * mark nor tag renders unchanged. The stored title is never rewritten: the
+ * reading is browser-local.
+ * @param title - the row's stored display title.
+ * @param status - the row's board mark, absent while the row is unmarked.
+ * @param t - the browser root's locale seat.
+ * @returns the effective column (absent when the row carries neither) and the title to render.
+ */
+function boardReading(
+  title: string, status: SessionBoardStatus | undefined, t: RowTranslate,
+): { status: SessionBoardStatus | undefined; title: string } {
+  const tagged = leadingTitleTag(title)
+  const effective = status ?? (tagged === undefined ? undefined : boardStatusFromTag(tagged.tag, t))
+  if (effective === undefined) return { status, title }
+  const boardTag = t('boardStatus.titleTag', { value: t(`boardStatus.${effective}`) })
+  return { status: effective, title: `${boardTag}${tagged?.rest ?? title}` }
+}
 
 /** Row display title: blank rows show the localized New Session label. */
 function displayTitle(node: SessionNode, t: RowTranslate): string {
@@ -137,6 +223,29 @@ function useTitleMarquee(title: RefObject<HTMLSpanElement | null>): { enter: () 
 function timeLabel(updatedAt: number, now: number, t: RowTranslate): string {
   const { unit, n } = relativeTime(updatedAt, now)
   return unit === 'now' ? t('time.now') : t(`time.${unit}`, { n })
+}
+
+/**
+ * Right-click support for a row's ellipsis Menu: the row's `onContextMenu`
+ * records the pointer position and the component opens the menu, and
+ * `anchorRect` feeds that point to the Menu's portal placement so the list
+ * opens at the cursor. It is present only while a point is recorded: a portal
+ * Menu without one measures its own wrapper instead.
+ */
+function useRowContextMenu(): {
+  openAtPointer: (e: ReactMouseEvent) => void
+  reset: () => void
+  anchorRect: (() => DOMRect) | undefined
+} {
+  const [point, setPoint] = useState<{ x: number; y: number } | undefined>(undefined)
+  const openAtPointer = (e: ReactMouseEvent): void => {
+    e.preventDefault()
+    setPoint({ x: e.clientX, y: e.clientY })
+  }
+  // A zero-size rect at the cursor: align/side extend the list down-right, and
+  // Menu already clamps it inside the viewport.
+  const anchorRect = point === undefined ? undefined : (): DOMRect => new DOMRect(point.x, point.y)
+  return { openAtPointer, reset: () => { setPoint(undefined) }, anchorRect }
 }
 
 /** Hover-card variant: distances wrap in the ago template; the now bucket stays bare (no "now ago"). */
@@ -235,6 +344,7 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
   const label = row.workspaceId === undefined ? t('group.ungrouped') : row.label
   const active = containsCurrentDescendant || (group.expanded && group.containsCurrent)
   const [menuOpen, setMenuOpen] = useState(false)
+  const contextMenu = useRowContextMenu()
   const workspaceMenuItems = [
     { id: 'rename', label: t('rename'), icon: <IconEditOutlineRegular /> },
     { id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutlineRegular />, danger: true },
@@ -246,6 +356,9 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
       role="treeitem"
       aria-expanded={row.expanded}
       onClick={onToggle}
+      onContextMenu={actions === undefined
+        ? undefined
+        : (e) => { contextMenu.openAtPointer(e); setMenuOpen(true) }}
       draggable={drag !== undefined}
       onDragStart={drag === undefined
         ? undefined
@@ -282,12 +395,13 @@ export function ProjectRowItem({ group, containsCurrentDescendant = false, onTog
             }}
             portal
             closeOnPointerLeave
+            {...(contextMenu.anchorRect === undefined ? {} : { getAnchorRect: contextMenu.anchorRect })}
             anchor={(
               <button
                 type="button"
                 className={css.iconButton}
                 aria-label={t('actions.workspace.aria', { name: label })}
-                onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
+                onClick={(e) => { e.stopPropagation(); contextMenu.reset(); setMenuOpen(v => !v) }}
               >
                 <IconEllipsisOutlineRegular />
               </button>
@@ -542,7 +656,8 @@ export function SearchResultItem({ result, currentId, onOpen, onUnarchive, t }: 
  * @returns the session row.
  */
 export function SessionNodeItem({
-  node, currentId, now, onOpen, onRenameRequest, renderSlot, onReveal, drag, t,
+  node, currentId, now, onOpen, onRenameRequest, boardStatus, onSetBoardStatus,
+  renderSlot, onReveal, drag, t,
 }: {
   node: SessionNode
   currentId: string | undefined
@@ -550,6 +665,10 @@ export function SessionNodeItem({
   onOpen: (id: SessionNode['id']) => void
   /** Open the rename dialog from a title double-click (id + current title). */
   onRenameRequest: (id: SessionNode['id'], currentTitle: string) => void
+  /** This row's board mark; absent while the row is unmarked. */
+  boardStatus?: SessionBoardStatus | undefined
+  /** Write this session's board mark (row menu action); without it the menu omits the board rows. */
+  onSetBoardStatus?: ((id: SessionNode['id'], status: SessionBoardStatus) => void) | undefined
   /** Scroll this row into view after search navigation, then acknowledge it. */
   onReveal?: (() => void) | undefined
   /** Present on reorderable-list rows so every row can remain a drop target. */
@@ -563,6 +682,7 @@ export function SessionNodeItem({
 >) {
   const row = node
   const title = displayTitle(node, t)
+  const board = boardReading(title, boardStatus, t)
   const selected = node.id === currentId
   const statuses = sessionStatuses(node, t)
   const primaryStatus = statuses[0]
@@ -572,6 +692,7 @@ export function SessionNodeItem({
   // their drop targets to fellow pinned rows.
   const draggable = drag !== undefined && !row.blank && !row.archived
   const [menuOpen, setMenuOpen] = useState(false)
+  const contextMenu = useRowContextMenu()
   // The menu's open state, bound into the row entries' `useMenuOpenState` hook.
   const menuOpenState = useMemo((): MenuOpenState => [menuOpen, setMenuOpen], [menuOpen])
   const rowRef = useRef<HTMLDivElement>(null)
@@ -596,6 +717,9 @@ export function SessionNodeItem({
       aria-selected={selected}
       aria-description={row.archived ? t('toast.archivedNotOpenable') : undefined}
       onClick={() => { onOpen(node.id) }}
+      onContextMenu={row.blank
+        ? undefined
+        : (e) => { contextMenu.openAtPointer(e); setMenuOpen(true) }}
       onPointerEnter={marquee.enter}
       onPointerLeave={marquee.leave}
       draggable={draggable}
@@ -640,7 +764,7 @@ export function SessionNodeItem({
           ? undefined
           : (e) => { e.stopPropagation(); onRenameRequest(node.id, row.title) }}
       >
-        {title}
+        {board.title}
       </span>
       {/* A blank New Session row is a provisional placeholder: nothing has
           happened in it yet, so a "now" timestamp and the row verbs
@@ -667,17 +791,28 @@ export function SessionNodeItem({
             onClose={() => { setMenuOpen(false) }}
             portal
             closeOnPointerLeave
+            {...(contextMenu.anchorRect === undefined ? {} : { getAnchorRect: contextMenu.anchorRect })}
             anchor={(
               <button
                 type="button"
                 className={css.iconButton}
                 aria-label={t('actions.session.aria', { name: title })}
-                onClick={() => { setMenuOpen(v => !v) }}
+                onClick={() => { contextMenu.reset(); setMenuOpen(v => !v) }}
               >
                 <IconEllipsisOutlineRegular />
               </button>
             )}
           >
+            {onSetBoardStatus !== undefined && SESSION_BOARD_STATUSES.map(status => (
+              <MenuItemButton
+                key={status}
+                icon={BOARD_STATUS_ICONS[status]}
+                separatorBefore={status === SESSION_BOARD_STATUSES[0]}
+                onSelect={() => { setMenuOpen(false); onSetBoardStatus?.(node.id, status) }}
+              >
+                {t(`boardStatus.${status}`)}
+              </MenuItemButton>
+            ))}
             {renderSlot(
               'sidebar.workspaces.session.menu.item',
               { sessionId: node.id, displayTitle: row.title },

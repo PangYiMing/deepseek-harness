@@ -18,6 +18,21 @@ export type SessionGroupBy = 'workspace' | 'workspace-tree' | 'flat'
 /** Session order: saved manual positions or current recency. */
 export type SessionOrderBy = 'manual' | 'updated'
 
+/**
+ * The sidebar's board vocabulary, first column first. A board mark is the
+ * browser's own label on a Session row — it describes what the operator
+ * intends to do with that Session, not the Session's runtime status.
+ */
+export const SESSION_BOARD_STATUSES = [
+  'planning', 'todo', 'inProgress', 'inReview', 'blocked', 'done',
+] as const
+
+/** One board mark of a Session row. */
+export type SessionBoardStatus = (typeof SESSION_BOARD_STATUSES)[number]
+
+/** An unmarked Session row sits in the board's first column. */
+export const DEFAULT_SESSION_BOARD_STATUS: SessionBoardStatus = SESSION_BOARD_STATUSES[0]
+
 /** Workspace browser viewing state persisted across surface remounts and reloads. */
 type WorkspaceViewState = {
   groupBy: SessionGroupBy
@@ -28,6 +43,13 @@ type WorkspaceViewState = {
   sessionOrderByAccount: Record<string, string[]>
   /** Archived-row visibility; omitted in pre-filter v5 snapshots and read as 'default'. */
   archivedFilter?: ArchivedFilter
+  /**
+   * Board mark per Session id; an id absent from this map is unmarked. Optional
+   * because a rehydrated value replaces init wholesale: state persisted before
+   * board marks existed carries no map, and the browser is a durable boundary
+   * this package validates rather than trusting.
+   */
+  sessionBoardStatus?: Record<string, SessionBoardStatus>
 }
 
 type SessionOrderSource = {
@@ -66,6 +88,11 @@ type WorkspaceViewActions = {
     source: SessionOrderSource,
   ) => void
   setArchivedFilter: (draft: WorkspaceViewState, filter: ArchivedFilter) => void
+  setSessionBoardStatus: (
+    draft: WorkspaceViewState,
+    sessionId: SessionId,
+    status: SessionBoardStatus,
+  ) => void
 }
 
 /** Copy read-only projections into the persisted mutable store representation. */
@@ -87,6 +114,7 @@ export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState
       groupExpansion: {},
       sessionOrderByAccount: {},
       archivedFilter: 'default',
+      sessionBoardStatus: {},
     }),
     persist: 'dsh.workspace.view.v5',
     actions: {
@@ -125,6 +153,9 @@ export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState
         }))
       },
       setArchivedFilter: (d, filter: ArchivedFilter) => { d.archivedFilter = filter },
+      setSessionBoardStatus: (d, sessionId, status) => {
+        d.sessionBoardStatus = { ...d.sessionBoardStatus, [sessionId]: status }
+      },
     },
   })
 }

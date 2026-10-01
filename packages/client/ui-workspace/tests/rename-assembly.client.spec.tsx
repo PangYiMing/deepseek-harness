@@ -123,9 +123,10 @@ describe('session rename through the assembled browser', () => {
     const trigger = within(row as HTMLElement).getByLabelText('会话“Persisted title”的操作')
     fireEvent.click(trigger)
     expect(view.getAllByRole('menuitem').map(item => item.textContent)).toEqual([
+      '待规划', '待办', '进行中', '审核中', '已阻塞', '已完成',
       '置顶会话', '重命名', '分叉会话', '归档会话', 'Export action', 'Last action',
     ])
-    expect(view.getAllByRole('separator')).toHaveLength(1)
+    expect(view.getAllByRole('separator')).toHaveLength(2)
     const last = view.getByRole('menuitem', { name: 'Last action' })
     const exportRow = view.getByRole('menuitem', { name: 'Export action' })
     trigger.focus()

@@ -14,6 +14,7 @@ import type { RowDragProps } from '../src/client/rows/Rows.tsx'
 import {
   ProjectRowItem, SearchResultItem, SessionNodeItem as SessionNodeItemComponent,
 } from '../src/client/rows/Rows.tsx'
+import type { SessionBoardStatus } from '../src/client/stores.ts'
 import type { GroupNode, SearchResultNode, SessionNode } from '../src/client/tree.ts'
 import { en, zh } from '../src/client/locales.ts'
 
@@ -728,6 +729,97 @@ describe('workspace browser rows', () => {
     fireEvent.click(quick)
     expect(onQuick).toHaveBeenCalledOnce()
     expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it('opens the session row menu at the pointer on right-click', () => {
+    const onOpen = vi.fn()
+    const node: SessionNode = {
+      id: sid('s-rightclick'), title: 'One', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, updatedAt: 0, pinned: false, archived: false,
+    }
+    render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={onOpen} t={t} />)
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.contextMenu(screen.getByRole('treeitem'), { clientX: 24, clientY: 32 })
+    // Right-click opens the row menu without opening the session.
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(screen.getByRole('menu')).toBeTruthy()
+  })
+
+  it('opens no row menu on right-click over a blank New Session row', () => {
+    const node: SessionNode = {
+      id: sid('s-blank'), title: '', blank: true, running: false,
+      runningSubagentCount: 0, completed: false, updatedAt: 0, pinned: false, archived: false,
+    }
+    render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()} t={t} />)
+    fireEvent.contextMenu(screen.getByRole('treeitem'), { clientX: 24, clientY: 32 })
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('leads the session row menu with the board columns and dispatches the picked one', () => {
+    const onSetBoardStatus = vi.fn()
+    const node: SessionNode = {
+      id: sid('s-board'), title: 'One', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, updatedAt: 0, pinned: false, archived: false,
+    }
+    render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      boardStatus="inReview" onSetBoardStatus={onSetBoardStatus} t={t} />)
+    // The mark leads the row title, while the session's own name (the actions
+    // button's label) stays the stored title.
+    expect(screen.getByText('【审核中】One')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent))
+      .toEqual(['待规划', '待办', '进行中', '审核中', '已阻塞', '已完成'])
+    fireEvent.click(screen.getByRole('menuitem', { name: '已阻塞' }))
+    expect(onSetBoardStatus).toHaveBeenCalledWith(node.id, 'blocked')
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('offers no board columns when the row has no mark writer', () => {
+    const node: SessionNode = {
+      id: sid('s-noboard'), title: 'One', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, updatedAt: 0, pinned: false, archived: false,
+    }
+    render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()} t={t} />)
+    fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
+    expect(screen.queryAllByRole('menuitem')).toHaveLength(0)
+  })
+
+  it('reads a row title as its board column and drops the tag the title carried', () => {
+    const row = (title: string, status?: SessionBoardStatus) => (
+      <SessionNodeItem
+        node={{
+          id: sid('s-title'), title, blank: false, running: false,
+          runningSubagentCount: 0, completed: false, updatedAt: 0, pinned: false, archived: false,
+        }}
+        currentId={undefined} now={0} onOpen={vi.fn()} boardStatus={status} t={t} />
+    )
+    const shows = (title: string, expected: string): void => {
+      render(row(title))
+      expect(screen.getByText(expected)).toBeTruthy()
+      cleanup()
+    }
+    // A title with neither mark nor tag renders unchanged.
+    shows('One', 'One')
+    // A mark leads the title.
+    render(row('One', 'blocked'))
+    expect(screen.getByText('【已阻塞】One')).toBeTruthy()
+    cleanup()
+    // A tag this package rendered before is replaced, never repeated, and the
+    // hand-typed words an operator uses for a column read as that column.
+    shows('【已完成】One', '【已完成】One')
+    shows('【完成】One', '【已完成】One')
+    shows('【库存】One', '【待办】One')
+    shows('【审核】One', '【审核中】One')
+    shows('【搞定了】One', '【已完成】One')
+    shows('[Done] One', '【已完成】One')
+    // A word naming no column still reads as the column that holds tagged work,
+    // and an empty or unclosed tag is not a tag.
+    shows('【说不好是什么】One', '【待办】One')
+    shows('【】One', '【待办】One')
+    shows('【没有闭合 One', '【没有闭合 One')
+    // An explicit mark outranks the tag, which leaves the title either way.
+    render(row('【库存】One', 'blocked'))
+    expect(screen.getByText('【已阻塞】One')).toBeTruthy()
   })
 
   it('shows the hover card after the dwell and suppresses it while the row menu is open', () => {

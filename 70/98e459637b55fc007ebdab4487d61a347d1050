@@ -1,0 +1,29 @@
+packages/client/ui-workspace/src/client/locales.ts
+  s_718c9c24d858cc::t_b2dcf291e83216 66-72,192-198
+packages/client/ui-workspace/src/client/stores.ts
+  s_718c9c24d858cc::t_b2dcf291e83216 21-35,46-52,91-95,117,156-158
+packages/client/ui-workspace/src/client/rows/Rows.tsx
+  s_718c9c24d858cc::t_b2dcf291e83216 14,18-23,29,50-132,228-250,347,359-361,398,404,659-660,668-671,685,695,720-722,767,794,800,806-815
+packages/client/ui-workspace/tests/rename-assembly.client.spec.tsx
+  s_718c9c24d858cc::t_b2dcf291e83216 126,129
+packages/client/ui-workspace/tests/rows.client.spec.tsx
+  s_718c9c24d858cc::t_b2dcf291e83216 17,734-822
+packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx
+  s_718c9c24d858cc::t_b2dcf291e83216 41-43,58-59,248-251,297,581-582,643,650-651,710-711,916,1391-1392,1415-1416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.45-trip",
+  "base_commit_sha": "7098e459637b55fc007ebdab4487d61a347d1050",
+  "prompts": {},
+  "sessions": {
+    "s_718c9c24d858cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7227b3b-a98e-4c28-83a1-27fe269660c8",
+        "model": "glm-5.3"
+      },
+      "human_author": "ympang <ympang@trip.com>"
+    }
+  }
+}

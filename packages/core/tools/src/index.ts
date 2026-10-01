@@ -475,9 +475,16 @@ export interface ToolRuntimeScheduler {
 
 /**
  * Scheduler entry point omitted from the generated named service API.
+ *
+ * Registered through `Symbol.for` so source launches stay safe: tsx resolves
+ * the bare `@deepseek-ai/dsh-tools` import to `src/` while profile resolution
+ * loads the plugin entry from `lib/`, producing two module instances in one
+ * process. A per-instance `Symbol()` would split the key between them and the
+ * scheduler lookup in `dsh-agent-loop` would read `undefined`.
+ *
  * @internal
  */
-export const TOOL_RUNTIME_SCHEDULER: unique symbol = Symbol('@deepseek-ai/dsh-tools.scheduler')
+export const TOOL_RUNTIME_SCHEDULER: unique symbol = Symbol.for('@deepseek-ai/dsh-tools.scheduler')
 
 /** Canonical error code for cancellation after a tool body was invoked. */
 export const TOOL_ABORTED = 'ABORTED'

@@ -1,0 +1,33 @@
+pnpm-lock.yaml
+  s_718c9c24d858cc::t_31cc177cb8b6d2 8752-8755,8760-8765
+THIRD_PARTY_NOTICES.md
+  s_718c9c24d858cc::t_31cc177cb8b6d2 142
+packages/goal/goal-round-driver/package.json
+  s_718c9c24d858cc::t_31cc177cb8b6d2 42-44,46-47
+packages/goal/goal-round-driver/tests/config.spec.ts
+  s_718c9c24d858cc::t_31cc177cb8b6d2 1-18
+packages/goal/goal-round-driver/src/index.ts
+  s_718c9c24d858cc::t_31cc177cb8b6d2 12-17,19-20,23,40,74-85,96-102,202,207-210,217,456-459
+packages/goal/goal-round-driver/tests/goal-round-driver.spec.ts
+  s_718c9c24d858cc::t_31cc177cb8b6d2 14,96,101,222-246
+packages/goal/goal-round-driver/src/config.ts
+  s_718c9c24d858cc::t_31cc177cb8b6d2 1-45
+packages/goal/goal-round-driver/tests/loader-composition.spec.ts
+  s_718c9c24d858cc::t_31cc177cb8b6d2 1-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.45-trip",
+  "base_commit_sha": "67343ee35c97cff170c50951050ef2fed2e8ddb3",
+  "prompts": {},
+  "sessions": {
+    "s_718c9c24d858cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e7227b3b-a98e-4c28-83a1-27fe269660c8",
+        "model": "glm-5.3"
+      },
+      "human_author": "ympang <ympang@trip.com>"
+    }
+  }
+}

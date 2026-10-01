@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-21-goal-round-injections.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/superpowers/plans/2026-09-21-goal-round-injections.md
+/goal-round-injections-implementation-plan:
+  en: 073aa8c454f8bdcf
+  zh: c0244707e34b413b
+/goal-round-injections-implementation-plan/global-constraints:
+  en: aa1de2d24d9aa128
+  zh: e2dbf508e23896f7
+/goal-round-injections-implementation-plan/global-constraints/task-1-define-and-test-cyclic-configuration:
+  en: edef1e8d5f91b7e2
+  zh: 6c497b160a8f7ab7
+/goal-round-injections-implementation-plan/global-constraints/task-2-admit-selected-messages-with-their-goal-round:
+  en: db684e66dc48e896
+  zh: 16fa9bb7a78ca3bd
+/goal-round-injections-implementation-plan/global-constraints/task-3-document-configuration-and-validate-generated-references:
+  en: 18b6a1a851f6d5aa
+  zh: ae69dca54dcdd208

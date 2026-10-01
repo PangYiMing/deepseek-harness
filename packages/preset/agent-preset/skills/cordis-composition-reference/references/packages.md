@@ -227,7 +227,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 |---|---|---|
 | `@deepseek-ai/dsh-command-goal` | no | Human-facing slash command for persisted same-session goals |
 | `@deepseek-ai/dsh-goal` | yes | Event-sourced same-session goal state and lifecycle service for the DeepSeek Harness |
-| `@deepseek-ai/dsh-goal-round-driver` | no | Race-fenced same-session goal-round driver |
+| `@deepseek-ai/dsh-goal-round-driver` | yes | Race-fenced same-session goal-round driver |
 | `@deepseek-ai/dsh-tool-goal` | yes | Model-facing same-session goal tools with execution-time authority checks |
 
 ## guard
